@@ -1,54 +1,38 @@
 import os
 import torch
 import numpy as np
-import imghdr
-import glob
-import json
 
 from torch.utils.data import Dataset, DataLoader
-# from pycocotools.coco import COCO
+from pycocotools.coco import COCO
 import cv2
 
 
-class DataGenerator(Dataset):
-    def __init__(self, dataset_dir, config_dir, transform=None):
+class CocoDataset(Dataset):
+    def __init__(self, root_dir, set='train2017', transform=None):
 
-        self.dataset_dir = dataset_dir
-
+        self.root_dir = root_dir
+        self.set_name = set
         self.transform = transform
 
-        self.image_ids = self.load_image_ids()
+        self.coco = COCO(os.path.join(self.root_dir, 'annotations', 'instances_' + self.set_name + '.json'))
+        self.image_ids = self.coco.getImgIds()
 
-        self.load_classes(config_dir)
+        self.load_classes()
 
-    def load_image_ids(self):
-        # Get image name for image id
-        list_ids = []
-        for image in glob.glob(self.dataset_dir + "/*.bmp"):
-            # print(image)
-            if imghdr.what(image):
-                image_name = os.path.split(image)[1]
-                list_ids.append(image_name)
-                
-        return list_ids
-
-
-    def load_classes(self, config_dir):
+    def load_classes(self):
 
         # load class names (name -> label)
-        with open(os.path.join(config_dir)) as f:
-            obj = json.load(f)
+        categories = self.coco.loadCats(self.coco.getCatIds())
+        categories.sort(key=lambda x: x['id'])
 
         self.classes = {}
-        for c_index, c in enumerate(obj['ClassName']):
-            self.classes[obj['ClassName'][c_index]] = len(self.classes)
-        # print(self.classes)
-        # also load the reverse (label -> name)
+        for c in categories:
+            self.classes[c['name']] = len(self.classes)
 
+        # also load the reverse (label -> name)
         self.labels = {}
         for key, value in self.classes.items():
             self.labels[value] = key
-        # print(self.labels)
 
     def __len__(self):
         return len(self.image_ids)
@@ -63,57 +47,38 @@ class DataGenerator(Dataset):
         return sample
 
     def load_image(self, image_index):
-        image_info = self.image_ids[image_index]
-        path = os.path.join(self.dataset_dir, image_info)
+        image_info = self.coco.loadImgs(self.image_ids[image_index])[0]
+        path = os.path.join(self.root_dir, self.set_name, image_info['file_name'])
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        # print(image_info)
+
         return img.astype(np.float32) / 255.
 
     def load_annotations(self, image_index):
         # get ground truth annotations
-        # print(self.image_ids)
-        try:
-            with open(os.path.join(self.dataset_dir,self.image_ids[image_index] + ".json")) as f:
-                obj = json.load(f)
-        except:
-            pass
-        
-        annos = obj['regions']
-        class_name = obj['classId']
-        bboxes= []
-        for annos_position in annos:
-
-            px = annos[annos_position]["List_X"]
-            py = annos[annos_position]["List_Y"]
-        
-            poly = np.stack((px, py), axis=1)
-            maxxy = poly.max(axis=0)
-            minxy = poly.min(axis=0)
-            
-            bboxes.append([minxy[0], minxy[1], maxxy[0], maxxy[1], class_name[int(annos_position)]])
-
+        annotations_ids = self.coco.getAnnIds(imgIds=self.image_ids[image_index], iscrowd=False)
         annotations = np.zeros((0, 5))
 
         # some images appear to miss annotations
-        if len(bboxes) == 0:
+        if len(annotations_ids) == 0:
             return annotations
 
         # parse annotations
-        for idx, a in enumerate(bboxes):
+        coco_annotations = self.coco.loadAnns(annotations_ids)
+        for idx, a in enumerate(coco_annotations):
 
             # some annotations have basically no width / height, skip them
-            # if a['bbox'][2] < 1 or a['bbox'][3] < 1:
-            #     continue
+            if a['bbox'][2] < 1 or a['bbox'][3] < 1:
+                continue
 
             annotation = np.zeros((1, 5))
-            annotation[0, :4] = bboxes[idx][:4]
-            annotation[0, 4] =  self.classes[bboxes[idx][4]]
+            annotation[0, :4] = a['bbox']
+            annotation[0, 4] = a['category_id'] - 1
             annotations = np.append(annotations, annotation, axis=0)
 
         # transform from [x, y, w, h] to [x1, y1, x2, y2]
-        # annotations[:, 2] = annotations[:, 0] + annotations[:, 2]
-        # annotations[:, 3] = annotations[:, 1] + annotations[:, 3]
+        annotations[:, 2] = annotations[:, 0] + annotations[:, 2]
+        annotations[:, 3] = annotations[:, 1] + annotations[:, 3]
 
         return annotations
 
@@ -174,7 +139,6 @@ class Augmenter(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample, flip_x=0.5):
-        np.random.seed(1)
         if np.random.rand() < flip_x:
             image, annots = sample['img'], sample['annot']
             image = image[:, ::-1, :]
