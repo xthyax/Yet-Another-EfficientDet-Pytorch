@@ -40,7 +40,7 @@ def get_args():
     parser.add_argument('-p', '--project', type=str, default='coco', help='project file that contains parameters')
     parser.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
     parser.add_argument('-n', '--num_workers', type=int, default=0, help='num_workers of dataloader')
-    parser.add_argument('--batch_size', type=int, default=1, help='The number of images per batch among all devices')
+    parser.add_argument('--batch_size', type=int, default=8, help='The number of images per batch among all devices')
     parser.add_argument('--head_only', type=boolean_string, default=True,
                         help='whether finetunes only the regressor and the classifier, '
                              'useful in early stage convergence or small/easy dataset')
@@ -233,6 +233,9 @@ def train(opt):
                 continue
 
             epoch_loss = []
+            loss_classification_ls = []
+            loss_regression_ls = []
+
             progress_bar = tqdm(training_generator)
             for iter, data in enumerate(progress_bar):
                 if iter < step - last_epoch * num_iter_per_epoch:
@@ -250,10 +253,20 @@ def train(opt):
 
                     optimizer.zero_grad()
                     cls_loss, reg_loss = model(imgs, annot, obj_list=params.obj_list)
+
+                    # print(f"\n[DEBUG] sample_per_batch: {imgs.size(0)}")
+
                     cls_loss = cls_loss.mean()
                     reg_loss = reg_loss.mean()
 
+                    loss_classification_ls.append(cls_loss.item())
+                    loss_regression_ls.append(reg_loss.item())
+
+                    # print(f"[DEBUG] cls_loss_mean: {cls_loss}")
+                    # print(f"[DEBUG] reg_loss_mean: {reg_loss}")
+
                     loss = cls_loss + reg_loss
+
                     if loss == 0 or not torch.isfinite(loss):
                         continue
 
@@ -261,15 +274,18 @@ def train(opt):
                     # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
                     optimizer.step()
 
+                    # TODO: remove epoch_loss list
                     epoch_loss.append(float(loss))
 
+                    # print(f"[DEBUG] epoch loss: {np.mean(epoch_loss)}")
                     progress_bar.set_description(
                         # 'Step: {}. Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
                         #     step, epoch, opt.num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
                         #     reg_loss.item(), loss.item()))
-                        'Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
-                            epoch, opt.num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
-                            reg_loss.item(), loss.item()))
+                    'Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {}'.format(
+                        epoch, opt.num_epochs, iter + 1, num_iter_per_epoch,\
+                        np.mean(loss_classification_ls),
+                        np.mean(loss_regression_ls), np.mean(loss_classification_ls) + np.mean(loss_regression_ls)))
                     # writer.add_scalars('Loss', {'train': loss}, step)
                     # writer.add_scalars('Regression_loss', {'train': reg_loss}, step)
                     # writer.add_scalars('Classfication_loss', {'train': cls_loss}, step)
@@ -287,9 +303,11 @@ def train(opt):
                     print('[Error]', traceback.format_exc())
                     print(e)
                     continue
+            loss = np.mean(loss_classification_ls) + np.mean(loss_regression_ls)
             writer.add_scalars('Loss', {'train': loss}, epoch)
-            writer.add_scalars('Regression_loss', {'train': reg_loss}, epoch)
-            writer.add_scalars('Classfication_loss', {'train': cls_loss}, epoch)            
+            writer.add_scalars('Regression_loss', {'train': np.mean(loss_regression_ls)}, epoch)
+            writer.add_scalars('Classfication_loss', {'train': np.mean(loss_classification_ls)}, epoch)
+            # print(f"[DEBUG] Epoch loss: {np.mean(epoch_loss)}")           
             # scheduler.step(np.mean(epoch_loss))
 
             # Save model after each epoch instead of after certain step
@@ -325,8 +343,8 @@ def train(opt):
                 loss = cls_loss + reg_loss
 
                 print(
-                    'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
-                        epoch, opt.num_epochs, cls_loss, reg_loss, loss))
+                'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
+                    epoch, opt.num_epochs, cls_loss, reg_loss, loss))
                 # writer.add_scalars('Loss', {'val': loss}, step)
                 # writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
                 # writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)
