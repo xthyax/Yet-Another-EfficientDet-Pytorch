@@ -38,6 +38,7 @@ class Params:
 def get_args():
     parser = argparse.ArgumentParser('Yet Another EfficientDet Pytorch: SOTA object detection network - Zylo117')
     parser.add_argument('-p', '--project', type=str, default='coco', help='project file that contains parameters')
+    parser.add_argument('-s', '--size', type=int, default=None, help='force input size')
     parser.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
     parser.add_argument('-n', '--num_workers', type=int, default=0, help='num_workers of dataloader')
     parser.add_argument('--batch_size', type=int, default=8, help='The number of images per batch among all devices')
@@ -129,10 +130,13 @@ def train(opt):
 
     input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 
+    input_size = input_sizes[opt.compound_coef] if opt.size is None else opt.size
+
     training_set = DataGenerator(dataset_dir=params.train_set, config_dir=params.config_dir,\
         transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
                                         Augmenter(),
-                                        Resizer(input_sizes[opt.compound_coef])]))
+                                        # Resizer(input_sizes[opt.compound_coef])]))
+                                        Resizer(input_size)]))
     # training_set = DataGenerator(root_dir=os.path.join(opt.data_path, params.project_name), set=params.train_set,
     #                            transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
     #                                                          Augmenter(),
@@ -141,7 +145,8 @@ def train(opt):
 
     val_set = DataGenerator(dataset_dir=params.val_set, config_dir=params.config_dir,\
         transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
-                                                Resizer(input_sizes[opt.compound_coef])]))
+                                                # Resizer(input_sizes[opt.compound_coef])]))
+                                                Resizer(input_size)]))
     # val_set = DataGenerator(root_dir=os.path.join(opt.data_path, params.project_name), set=params.val_set,
     #                       transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
     #                                                     Resizer(input_sizes[opt.compound_coef])]))
