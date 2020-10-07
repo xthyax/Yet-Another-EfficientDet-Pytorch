@@ -45,7 +45,7 @@ obj_list = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train'
 
 color_list = standard_to_bgr(STANDARD_COLORS)
 # tf bilinear interpolation is different from any other's, just make do
-input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
+input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536, 1536]
 input_size = input_sizes[compound_coef] if force_input_size is None else force_input_size
 ori_imgs, framed_imgs, framed_metas = preprocess(img_path, max_size=input_size)
 
@@ -58,7 +58,7 @@ x = x.to(torch.float32 if not use_float16 else torch.float16).permute(0, 3, 1, 2
 
 model = EfficientDetBackbone(compound_coef=compound_coef, num_classes=len(obj_list),
                              ratios=anchor_ratios, scales=anchor_scales)
-model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth'))
+model.load_state_dict(torch.load(f'weights/efficientdet-d{compound_coef}.pth', map_location='cpu'))
 model.requires_grad_(False)
 model.eval()
 
@@ -82,6 +82,8 @@ def display(preds, imgs, imshow=True, imwrite=False):
     for i in range(len(imgs)):
         if len(preds[i]['rois']) == 0:
             continue
+
+        imgs[i] = imgs[i].copy()
 
         for j in range(len(preds[i]['rois'])):
             x1, y1, x2, y2 = preds[i]['rois'][j].astype(np.int)
