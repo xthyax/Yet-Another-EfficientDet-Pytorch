@@ -4,9 +4,9 @@
 
 import datetime
 import os
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "3" # "6"
+os.environ["OMP_NUM_THREADS"] = "2" # "4"
+os.environ["NUMEXPR_NUM_THREADS"] = "3" # "6"
 import argparse
 import traceback
 import random
@@ -24,7 +24,7 @@ from tqdm.autonotebook import tqdm
 
 from efficientdet.loss import FocalLoss
 from utils.sync_batchnorm import patch_replication_callback
-from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights
+from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights, boolean_string
 
 
 class Params:
@@ -67,12 +67,18 @@ def get_args():
     args = parser.parse_args()
     return args
 
+def seed_torch(seed=1):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
-def boolean_string(s):
-    if s not in {'False', 'True'}:
-        raise ValueError('Not a valid boolean string')
-    return s == 'True'
-
+def _init_fn(worker_id):
+    np.random.seed(1)
 
 class ModelWithLoss(nn.Module):
     def __init__(self, model, debug=False):
@@ -97,20 +103,6 @@ def train(opt):
     if params.num_gpus == 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    if torch.cuda.is_available():
-        # For stupid determinism - FYI : non-sense in most learning-case
-        # Toggle torch.backends.cudnn.deterministic for determinisitc behavior - Warning: This will reduce model performance(in term of accuracy)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.manual_seed(1)
-        torch.cuda.manual_seed(1)
-        np.random.seed(1)
-        random.seed(1)
-    else:
-        torch.manual_seed(1)
-        np.random.seed(1)
-        random.seed(1)
-
     opt.saved_path = opt.saved_path + f'/{params.project_name}/'
     opt.log_path = opt.log_path + f'/{params.project_name}/tensorboard/'
     os.makedirs(opt.log_path, exist_ok=True)
@@ -134,14 +126,15 @@ def train(opt):
 
     training_set = DataGenerator(dataset_dir=params.train_set, config_dir=params.config_dir,\
         transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
-                                        Augmenter(),
+                                        # Augmenter(),
                                         # Resizer(input_sizes[opt.compound_coef])]))
                                         Resizer(input_size)]))
     # training_set = DataGenerator(root_dir=os.path.join(opt.data_path, params.project_name), set=params.train_set,
     #                            transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
     #                                                          Augmenter(),
     #                                                          Resizer(input_sizes[opt.compound_coef])]))
-    training_generator = DataLoader(training_set, pin_memory=False, worker_init_fn=1,**training_params)
+    seed_torch()
+    training_generator = DataLoader(training_set, pin_memory=False, worker_init_fn=_init_fn, **training_params)
 
     val_set = DataGenerator(dataset_dir=params.val_set, config_dir=params.config_dir,\
         transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
@@ -150,7 +143,8 @@ def train(opt):
     # val_set = DataGenerator(root_dir=os.path.join(opt.data_path, params.project_name), set=params.val_set,
     #                       transform=transforms.Compose([Normalizer(mean=params.mean, std=params.std),
     #                                                     Resizer(input_sizes[opt.compound_coef])]))
-    val_generator = DataLoader(val_set, pin_memory=False, worker_init_fn=1, **val_params)
+    seed_torch()
+    val_generator = DataLoader(val_set, pin_memory=False, worker_init_fn=_init_fn, **val_params)
 
     model = EfficientDetBackbone(num_classes=len(params.obj_list), compound_coef=opt.compound_coef,
                                  ratios=eval(params.anchors_ratios), scales=eval(params.anchors_scales))

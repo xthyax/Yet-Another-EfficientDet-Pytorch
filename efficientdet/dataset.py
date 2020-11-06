@@ -4,33 +4,45 @@ import numpy as np
 import imghdr
 import glob
 import json
-
+import random
 from torch.utils.data import Dataset, DataLoader
 # from pycocotools.coco import COCO
 import cv2
 
 
 class DataGenerator(Dataset):
-    def __init__(self, dataset_dir, config_dir, transform=None):
-
-        self.dataset_dir = dataset_dir
+    def __init__(self, dataset_dir, config_dir, transform=None, augmentation):
+        
+        if isinstance(dataset_dir , list):
+            self.dataset_dir = dataset_dir
+        else:
+            self.dataset_dir = [dataset_dir]
 
         self.transform = transform
 
-        self.image_ids = self.load_image_ids()
+        self.image_paths = self.load_image_path()
 
         self.load_classes(config_dir)
 
-    def load_image_ids(self):
+        self.augmentation = augmentation
+
+    def load_image_path(self):
         # Get image name for image id
-        list_ids = []
-        for image in glob.glob(self.dataset_dir + "/*.bmp"):
-            # print(image)
-            if imghdr.what(image):
-                image_name = os.path.split(image)[1]
-                list_ids.append(image_name)
+        list_imgs_path = []
+        for path_data in self.dataset_dir:
+
+            if "train" in self.dataset_dir.lower().split("\\")[-1]:
+                path_data = os.path.join(self.dataset_dir, "OriginImage")
+            else:
+                pass
+            
+            for image_path in glob.glob(os.path.join(path_data,"*.bmp")):
+                # print(image)
+                if imghdr.what(image_path):
+                    # image_name = os.path.split(image)[1]
+                    list_imgs_path.append(image_path)
                 
-        return list_ids
+        return list_imgs_path
 
 
     def load_classes(self, config_dir):
@@ -51,31 +63,44 @@ class DataGenerator(Dataset):
         # print(self.labels)
 
     def __len__(self):
-        return len(self.image_ids)
+        return len(self.image_paths)
 
     def __getitem__(self, idx):
 
-        img = self.load_image(idx)
-        annot = self.load_annotations(idx)
+        img, augment_opt = self.load_image(idx)
+        annot = self.load_annotations(idx, augment_opt)
         sample = {'img': img, 'annot': annot}
         if self.transform:
             sample = self.transform(sample)
         return sample
 
     def load_image(self, image_index):
-        image_info = self.image_ids[image_index]
-        path = os.path.join(self.dataset_dir, image_info)
+        image_path = self.image_paths[image_index]
+        image_name = os.path.split(image_path)[1]
+        random_augment = self.augmentation and torch.randint(0, 2,(1,)).bool().item()
+
+        if random_augment:
+            path = os.path.join(self.dataset_dir[0],"TransformImage", random.choices(self.augmentation)+"_"+image_name)
+        else:
+            path = image_path
+        # path = os.path.join(self.dataset_dir, image_info)
         img = cv2.imread(path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # print(image_info)
-        return img.astype(np.float32) / 255.
+        return img.astype(np.float32) / 255., random_augment
 
-    def load_annotations(self, image_index):
+    def load_annotations(self, image_index, augment_opt):
         # get ground truth annotations
         # print(self.image_ids)
+        image_path = self.image_paths[image_index]
+        image_name = os.path.split(image_path)[1]
         try:
-            with open(os.path.join(self.dataset_dir,self.image_ids[image_index] + ".json")) as f:
-                obj = json.load(f)
+            if augment_opt:
+                with open(os.path.join(self.dataset_dir[0],"TransformImage",image_name + ".json")) as f:
+                    obj = json.load(f)
+            else:
+                with open(image_path + ".json") as f:
+                    obj = json.load(f)
         except:
             pass
         
