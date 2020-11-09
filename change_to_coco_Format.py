@@ -1,22 +1,25 @@
 import json
 import numpy as np
 import glob
+import os
 
 # TODO: Debug this script
 def create_json_coco_Format(ImageDIR, AnnoDIR, id_image, count_annotation, class_names):
     images = []
     annotation = []
     categories =[]
-    for i in range (1, len(class_names) + 1):
+    for i in range (1, len(class_names)):
             sub_category = {"supercategory": "none"}
             sub_category["id"] = i
+            print(i)
+            print(class_names[i])
             sub_category["name"] = class_names[i]
             categories.append(sub_category)
     for json_file in glob.glob( ImageDIR + "/*.json"):
         with open(json_file) as f:
             obj = json.load(f)
 
-        fname = json_file.split("/")[1].replace("bmp.json", "bmp")
+        fname = json_file.split("\\")[1].replace("bmp.json", "bmp")
         height = obj["height"]
         width = obj["width"]
 
@@ -61,7 +64,7 @@ def create_json_coco_Format(ImageDIR, AnnoDIR, id_image, count_annotation, class
         images.append(sub_images)                
     all_data= {"images": images, "annotations": annotation, "categories" : categories}
     # print(all_data)
-    with open(AnnoDIR +'/instances_'+ImageDIR+'.json', 'w') as outfile:
+    with open(ImageDIR+'.json', 'w') as outfile:
         print('Writing JSON file from '+ ImageDIR+ "into" + AnnoDIR +'/instances_'+ImageDIR+'.json')
         json.dump(all_data, outfile)
     """
@@ -80,6 +83,15 @@ def load(TrainImageDIR, ValImageDIR, TestImageDir, AnnoDIR, listClass):
     create_json_coco_Format(TestImageDir, AnnoDIR, id_image, count_annotation, class_names)
 
 
-class_list = ["BG", "Bridging defect", "Bridging defect 1", "Overkill"]
+class_list = ["BG", "Foreign_material", "Lead", "Wire_short"]
+if __name__ == '__main__':
+    import argparse
 
-load('Train_filtered','Validation','Test','annotations', class_list)
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Reshape image')
+    parser.add_argument('--folder', help=""
+                "This argument is the path to the input image file", type=str)
+    args = parser.parse_args()
+    if args.folder:
+        load( os.path.join(args.folder, 'Train'),os.path.join(args.folder,'Validation'),os.path.join(args.folder,'Test'),os.path.join(args.folder,'annotations'), class_list)

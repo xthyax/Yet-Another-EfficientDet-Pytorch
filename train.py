@@ -24,7 +24,7 @@ from tqdm.autonotebook import tqdm
 
 from efficientdet.loss import FocalLoss
 from utils.sync_batchnorm import patch_replication_callback
-from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights, boolean_string
+from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights, boolean_string, set_GPU
 
 
 class Params:
@@ -49,7 +49,7 @@ def get_args():
     parser.add_argument('--optim', type=str, default='adamw', help='select optimizer for training, '
                                                                    'suggest using \'admaw\' until the'
                                                                    ' very final stage then switch to \'sgd\'')
-    parser.add_argument('--num_epochs', type=int, default=50)
+    parser.add_argument('--num_epochs', type=int, default=500)
     parser.add_argument('--val_interval', type=int, default=1, help='Number of epoches between valing phases')
     parser.add_argument('--save_interval', type=int, default=500, help='Number of steps between saving')
     parser.add_argument('--es_min_delta', type=float, default=0.0,
@@ -60,7 +60,6 @@ def get_args():
     parser.add_argument('--log_path', type=str, default='logs/')
     parser.add_argument('-w', '--load_weights', type=str, default=None,
                         help='whether to load weights from a checkpoint, set None to initialize, set \'last\' to load last checkpoint')
-    parser.add_argument('--saved_path', type=str, default='logs/')
     parser.add_argument('--debug', type=boolean_string, default=False, help='whether visualize the predicted boxes of training, '
                                                                   'the output images will be in test/')
 
@@ -99,14 +98,12 @@ class ModelWithLoss(nn.Module):
 
 def train(opt):
     params = Params(f'projects/{opt.project}.yml')
-
+    set_GPU(params.num_gpus)
     if params.num_gpus == 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    opt.saved_path = opt.saved_path + f'/{params.project_name}/'
-    opt.log_path = opt.log_path + f'/{params.project_name}/tensorboard/'
+    opt.log_path = opt.log_path 
     os.makedirs(opt.log_path, exist_ok=True)
-    os.makedirs(opt.saved_path, exist_ok=True)
 
     training_params = {'batch_size': opt.batch_size,
                        'shuffle': True,
@@ -154,7 +151,7 @@ def train(opt):
         if opt.load_weights.endswith('.pth'):
             weights_path = opt.load_weights
         else:
-            weights_path = get_last_weights(opt.saved_path)
+            weights_path = get_last_weights(opt.log_path)
         try:
             last_step = int(os.path.basename(weights_path).split('_')[-1].split('.')[0])
         except:
@@ -373,9 +370,9 @@ def train(opt):
 
 def save_checkpoint(model, name):
     if isinstance(model, CustomDataParallel):
-        torch.save(model.module.model.state_dict(), os.path.join(opt.saved_path, name))
+        torch.save(model.module.model.state_dict(), opt.log_path)
     else:
-        torch.save(model.model.state_dict(), os.path.join(opt.saved_path, name))
+        torch.save(model.model.state_dict(), opt.log_path))
 
 
 if __name__ == '__main__':

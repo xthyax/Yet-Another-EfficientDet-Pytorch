@@ -15,7 +15,7 @@ from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
 from torchvision.ops.boxes import batched_nms
 
 from utils.sync_batchnorm import SynchronizedBatchNorm2d
-
+from gpuinfo import GPUInfo
 
 def invert_affine(metas: Union[float, list, tuple], preds):
     for i in range(len(preds)):
@@ -312,3 +312,29 @@ def boolean_string(s):
     if s not in {'False', 'True'}:
         raise ValueError('Not a valid boolean string')
     return s == 'True'
+
+def set_GPU(num_of_GPUs):
+
+    current_memory_gpu = GPUInfo.gpu_usage()[1]
+    list_available_gpu = np.where(np.array(current_memory_gpu) < 1500)[0].astype('str').tolist()
+    current_available_gpu = ",".join(list_available_gpu)
+    if len(list_available_gpu) < num_of_GPUs:
+        print("==============Warning==============")
+        print("Your process had been terminated")
+        print("Please decrease number of gpus you using")
+        print(f"number of Devices available:\t{len(list_available_gpu)} gpu(s)")
+        print(f"number of Device will use:\t{num_of_GPUs} gpu(s)")
+        sys.exit()
+    elif len(list_available_gpu) > num_of_GPUs:
+        redundant_gpu = len(list_available_gpu) - num_of_GPUs
+        list_available_gpu = list_available_gpu[redundant_gpu:]
+        current_available_gpu = ",".join(list_available_gpu)
+        print("***********************************************")
+        print(f"You are using GPU(s): {current_available_gpu}")
+        print("***********************************************")
+        os.environ["CUDA_VISIBLE_DEVICES"] = current_available_gpu
+    else: 
+        print("***********************************************")
+        print(f"You are using GPU(s): {current_available_gpu}")
+        print("***********************************************")
+        os.environ["CUDA_VISIBLE_DEVICES"] = current_available_gpu
