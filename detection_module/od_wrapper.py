@@ -212,10 +212,13 @@ class EfficientDetWrapper:
                 loss_classification_ls = []
                 loss_regression_ls = []
 
+                seed_torch(epoch)
+
                 self.pytorch_model.train()
 
                 progress_bar = tqdm(trainloader)
                 for iter, data in enumerate(progress_bar):
+
                     try:
                         imgs = data['img']
                         annot = data['annot']
@@ -271,6 +274,7 @@ class EfficientDetWrapper:
                         print('[Error]', traceback.format_exc())
                         print(e)
                         continue
+                    
                 loss = np.mean(loss_classification_ls) + np.mean(loss_regression_ls)
                 writer.add_scalars('Loss', {'train': loss}, epoch)
                 writer.add_scalars('Regression_loss', {'train': np.mean(loss_regression_ls)}, epoch)
