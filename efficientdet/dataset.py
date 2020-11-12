@@ -11,7 +11,7 @@ import cv2
 
 
 class DataGenerator(Dataset):
-    def __init__(self, dataset_dir, config_dir, transform=None, augmentation=None):
+    def __init__(self, dataset_dir, classes, transform=None, augmentation=None):
 
         if isinstance(dataset_dir , list):
             self.dataset_dir = dataset_dir
@@ -22,7 +22,7 @@ class DataGenerator(Dataset):
 
         self.image_paths = self.load_image_path()
 
-        self.load_classes(config_dir)
+        self.load_classes(classes)
 
         self.augmentation = augmentation
 
@@ -31,10 +31,10 @@ class DataGenerator(Dataset):
         list_imgs_path = []
         for path_data in self.dataset_dir:
 
-            # if "train" in path_data.lower().split("\\")[-1]:
-            #     path_data = os.path.join(self.dataset_dir, "OriginImage")
-            # else:
-            #     pass
+            if "train" in path_data.lower().split("\\")[-1]:
+                path_data = os.path.join(self.dataset_dir, "OriginImage")
+            else:
+                pass
             
             for image_path in glob.glob(os.path.join(path_data,"*.bmp")):
                 # print(image)
@@ -45,15 +45,11 @@ class DataGenerator(Dataset):
         return list_imgs_path
 
 
-    def load_classes(self, config_dir):
-
-        # load class names (name -> label)
-        with open(os.path.join(config_dir)) as f:
-            obj = json.load(f)
+    def load_classes(self, classes_list):
 
         self.classes = {}
-        for c_index, c in enumerate(obj['ClassName']):
-            self.classes[obj['ClassName'][c_index]] = len(self.classes)
+        for c_index, c in enumerate(classes_list):
+            self.classes[classes_list[c_index]] = len(self.classes)
         # print(self.classes)
         # also load the reverse (label -> name)
 

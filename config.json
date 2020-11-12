@@ -1,0 +1,100 @@
+{
+    "NoEpoch": 200,
+    "BatchSize": 2,
+    "Optimizer": "ADAM",
+    "Momentum": 0.9,
+    "LearningRate": 0.01,
+    "Decay": 0.0001,
+    "Nesterov": "True",
+    "Beta1": 0.9,
+    "Beta2": 0.999,
+    "RHO": 0.9,
+    "Epsilon": null,
+    "AMSgrad": "True",
+    "GradientClipNorm": 5.0,
+    "TrainingLayer": "Heads",
+    "StepPerEpochs": 1000,
+    "ValidationSteps": 2000,
+    "BackboneStrides": [
+        4,
+        8,
+        16,
+        32,
+        64
+    ],
+    "RPNAnchorScales": [
+        8,
+        16,
+        32,
+        64,
+        128
+    ],
+    "RPNAnchorRatios": [
+        0.5,
+        1.0,
+        2.0
+    ],
+    "RPN_NMS_Threshold": 0.7,
+    "RPN_AnchorStride": 1,
+    "RPN_TrainAnchorPerImage": 256,
+    "UseMiniMask": "True",
+    "MiniMaskShape": [
+        56,
+        56
+    ],
+    "ImageResizeMode": "square",
+    "ImageMinMaxDim": [
+        896,
+        1536
+    ],
+    "PostNMS_ROIsTraining": 2000,
+    "PostNMS_ROIsInference": 1000,
+    "ImageMinScale": 0,
+    "MeanPixel": [
+        123.7,
+        116.8,
+        103.9
+    ],
+    "TrainROIsPerImage": 200,
+    "ROIPositiveRatio": 0.33,
+    "ROIPoolSize": 7,
+    "MaskPoolSize": 14,
+    "MaskShape": [
+        28,
+        28
+    ],
+    "MaxGTInstances": 100,
+    "RPN_BBOX_STD_DEV": [
+        0.1,
+        0.1,
+        0.2,
+        0.2
+    ],
+    "BBOX_STD_DEV": [
+        0.1,
+        0.1,
+        0.2,
+        0.2
+    ],
+    "DetectionMaxInstances": 100,
+    "DetectionMinConfidence": 0.7,
+    "DetectionNMSThreshold": 0.3,
+    "UseRPNROIs": "True",
+    "TrainBN": "False",
+    "LabelForegrounds": [],
+    "NonDefectClassName": [],
+    "SecondClassName": {},
+    "NUM_GPU": 1,
+    "CropSize": 128,
+    "ChangeBoxSize": 128,
+    "LastComponentFolder": "Train",
+    "LastBatchFolder": "All",
+    "ClassThreshold": [],
+    "Architecture": "5",
+    "ModelMode": "Detection",
+    "Anchor_Scales": "[2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)]",
+    "Anchor_Ratios": "[(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]",
+    "Mean": [0.485, 0.456, 0.406],
+    "Std" : [0.229, 0.224, 0.225],
+    "Image_Size" : 1024 
+}
