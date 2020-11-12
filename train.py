@@ -49,7 +49,7 @@ def get_args():
     parser.add_argument('--optim', type=str, default='adamw', help='select optimizer for training, '
                                                                    'suggest using \'admaw\' until the'
                                                                    ' very final stage then switch to \'sgd\'')
-    parser.add_argument('--num_epochs', type=int, default=500)
+    parser.add_argument('--num_epochs', type=int, default=200)
     parser.add_argument('--val_interval', type=int, default=1, help='Number of epoches between valing phases')
     parser.add_argument('--save_interval', type=int, default=500, help='Number of steps between saving')
     parser.add_argument('--es_min_delta', type=float, default=0.0,
@@ -102,7 +102,6 @@ def train(opt):
     if params.num_gpus == 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    opt.log_path = opt.log_path 
     os.makedirs(opt.log_path, exist_ok=True)
 
     training_params = {'batch_size': opt.batch_size,
@@ -278,10 +277,12 @@ def train(opt):
                         # 'Step: {}. Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {:.5f}'.format(
                         #     step, epoch, opt.num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
                         #     reg_loss.item(), loss.item()))
-                    'Epoch: {}/{}. Iteration: {}/{}. Cls loss: {:.5f}. Reg loss: {:.5f}. Total loss: {}'.format(
-                        epoch, opt.num_epochs, iter + 1, num_iter_per_epoch,\
+                    'Epoch: {}/{}. Cls loss: {:.2f}. Reg loss: {:.2f}. Total loss: {:.2f}'.format(
+                        epoch + 1, opt.num_epochs,\
                         np.mean(loss_classification_ls),
                         np.mean(loss_regression_ls), np.mean(loss_classification_ls) + np.mean(loss_regression_ls)))
+
+                    progress_bar.update()
                     # writer.add_scalars('Loss', {'train': loss}, step)
                     # writer.add_scalars('Regression_loss', {'train': reg_loss}, step)
                     # writer.add_scalars('Classfication_loss', {'train': cls_loss}, step)
@@ -370,9 +371,9 @@ def train(opt):
 
 def save_checkpoint(model, name):
     if isinstance(model, CustomDataParallel):
-        torch.save(model.module.model.state_dict(), opt.log_path)
+        torch.save(model.module.model.state_dict(), os.path.join(opt.log_path, name))
     else:
-        torch.save(model.model.state_dict(), opt.log_path))
+        torch.save(model.model.state_dict(), os.path.join(opt.log_path, name))
 
 
 if __name__ == '__main__':

@@ -11,8 +11,8 @@ import cv2
 
 
 class DataGenerator(Dataset):
-    def __init__(self, dataset_dir, config_dir, transform=None, augmentation):
-        
+    def __init__(self, dataset_dir, config_dir, transform=None, augmentation=None):
+
         if isinstance(dataset_dir , list):
             self.dataset_dir = dataset_dir
         else:
@@ -31,10 +31,10 @@ class DataGenerator(Dataset):
         list_imgs_path = []
         for path_data in self.dataset_dir:
 
-            if "train" in self.dataset_dir.lower().split("\\")[-1]:
-                path_data = os.path.join(self.dataset_dir, "OriginImage")
-            else:
-                pass
+            # if "train" in path_data.lower().split("\\")[-1]:
+            #     path_data = os.path.join(self.dataset_dir, "OriginImage")
+            # else:
+            #     pass
             
             for image_path in glob.glob(os.path.join(path_data,"*.bmp")):
                 # print(image)
