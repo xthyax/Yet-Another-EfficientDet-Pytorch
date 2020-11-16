@@ -35,7 +35,7 @@ class LoadConfig:
         try :
             self.ARCHITECTURE = self.config['Architecture']
         except:
-            self.ARCHITECTURE = "B4"
+            self.ARCHITECTURE = "5"
         self.CLASS_NAME =  [class_name for class_name in self.config['DictionaryClassName']]
         try:
             self.FAILCLASS_NAME = self.config['FailClassName']

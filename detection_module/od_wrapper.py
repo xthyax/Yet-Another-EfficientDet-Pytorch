@@ -1,11 +1,13 @@
 import argparse
 import traceback
 import random
+import os
 
 import torch
 import yaml
 import torch
 import torch.optim as optim
+import torch_optimizer
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -142,6 +144,7 @@ class EfficientDetWrapper:
             print("Invalid optimizers")
 
     def load_weight(self):
+        self.pytorch_model = self._build_model()
         if self.config.WEIGHT_PATH is not None:
             if self.config.WEIGHT_PATH.endswith('.pth'):
                 weights_path = self.config.WEIGHT_PATH
@@ -167,18 +170,23 @@ class EfficientDetWrapper:
 
     def train(self):
         os.makedirs(self.config.LOGS_PATH,exist_ok=True)
-
+        params = {
+            'drop_last': True,
+            'collate_fn': collater
+        }
         seed_torch()
         trainloader = FastDataLoader(self.train_generator, pin_memory=False, \
             worker_init_fn= _init_fn,\
-            batch_size=self.config.BATCH_SIZE * self.config.GPU_COUNT, shuffle=True, num_workers=self.config.NUM_WORKERS)
+            batch_size=self.config.BATCH_SIZE * self.config.GPU_COUNT, shuffle=True, num_workers=self.config.NUM_WORKERS,
+            **params)
         
         seed_torch()
-        valloader = FastDataLoader(self.val_generator, pin_memory=False,\
+        valloader = FastDataLoader(self.val_generator,pin_memory=False,\
             worker_init_fn= _init_fn,\
-            batch_size=self.config.BATCH_SIZE * self.config.GPU_COUNT, shuffle=False, num_workers=self.config.NUM_WORKERS)
+            batch_size=self.config.BATCH_SIZE * self.config.GPU_COUNT, shuffle=False, num_workers=self.config.NUM_WORKERS,
+            **params)
 
-        self.load_weight():
+        self.load_weight()
 
         if self.config.GPU_COUNT > 1 and self.config.BATCH_SIZE // self.config.GPU_COUNT < 4:
             self.pytorch_model.apply(replace_w_sync_bn)
@@ -191,7 +199,7 @@ class EfficientDetWrapper:
         self.pytorch_model = ModelWithLoss(self.pytorch_model, debug=False)
 
         if self.config.GPU_COUNT > 0:
-            self.pytorch_model = self.pytorch_model.cuda()
+            self.pytorch_model = self.pytorch_model.to(self.device)
             if self.config.GPU_COUNT > 1:
                 self.pytorch_model = CustomDataParallel(self.pytorch_model, self.config.GPU_COUNT)
                 if use_sync_bn:
@@ -230,7 +238,7 @@ class EfficientDetWrapper:
                             annot = annot.cuda()
 
                         optimizer.zero_grad()
-                        cls_loss, reg_loss = self.pytorch_model(imgs, annot, obj_list=params.obj_list)
+                        cls_loss, reg_loss = self.pytorch_model(imgs, annot, obj_list=self.classes)
 
                         # print(f"\n[DEBUG] sample_per_batch: {imgs.size(0)}")
 
@@ -261,7 +269,7 @@ class EfficientDetWrapper:
                             #     step, epoch, opt.num_epochs, iter + 1, num_iter_per_epoch, cls_loss.item(),
                             #     reg_loss.item(), loss.item()))
                         'Epoch: {}/{}. Cls loss: {:.2f}. Reg loss: {:.2f}. Total loss: {:.2f}'.format(
-                            epoch + 1, opt.num_epochs,\
+                            epoch + 1, self.config.NO_EPOCH,\
                             np.mean(loss_classification_ls),
                             np.mean(loss_regression_ls), np.mean(loss_classification_ls) + np.mean(loss_regression_ls)))
 
@@ -292,11 +300,11 @@ class EfficientDetWrapper:
                         imgs = data['img']
                         annot = data['annot']
 
-                        if params.num_gpus == 1:
+                        if self.config.GPU_COUNT == 1:
                             imgs = imgs.cuda()
                             annot = annot.cuda()
 
-                        cls_loss, reg_loss = self.pytorch_model(imgs, annot, obj_list=params.obj_list)
+                        cls_loss, reg_loss = self.pytorch_model(imgs, annot, obj_list=self.classes)
                         cls_loss = cls_loss.mean()
                         reg_loss = reg_loss.mean()
 
@@ -313,7 +321,7 @@ class EfficientDetWrapper:
 
                 print(
                 'Val. Epoch: {}/{}. Classification loss: {:1.5f}. Regression loss: {:1.5f}. Total loss: {:1.5f}'.format(
-                    epoch, opt.num_epochs, cls_loss, reg_loss, loss))
+                    epoch, self.config.NO_EPOCH, cls_loss, reg_loss, loss))
                 # writer.add_scalars('Loss', {'val': loss}, step)
                 # writer.add_scalars('Regression_loss', {'val': reg_loss}, step)
                 # writer.add_scalars('Classfication_loss', {'val': cls_loss}, step)

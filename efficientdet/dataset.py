@@ -32,7 +32,7 @@ class DataGenerator(Dataset):
         for path_data in self.dataset_dir:
 
             if "train" in path_data.lower().split("\\")[-1]:
-                path_data = os.path.join(self.dataset_dir, "OriginImage")
+                path_data = os.path.join(path_data, "OriginImage")
             else:
                 pass
             
