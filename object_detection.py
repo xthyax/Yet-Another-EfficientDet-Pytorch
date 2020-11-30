@@ -146,7 +146,8 @@ if __name__ == '__main__':
             model = EfficientDetWrapper(config)
             model.load_weight()
             # Test with 1 img
-            # img, _ = load_and_crop("D:\\Coding_practice\\_Data\\KLA_Infineon\\Dataset_model_1\\Test\\1_Burr_Defect_2 (1).bmp")
+            img_path = r
+            model.inference(img_path)
             # output = model.predict_one(img)
             # print(f"Result : {output}")
             # model.confusion_matrix_evaluate()

@@ -20,10 +20,11 @@ from tqdm.autonotebook import tqdm
 from .callback import SaveModelCheckpoint
 from efficientdet.custom_dataloader import FastDataLoader
 from efficientdet.loss import FocalLoss
+from efficientdet.utils import BBoxTransform, ClipBoxes
 from utils.sync_batchnorm import patch_replication_callback
 from utils.utils import replace_w_sync_bn, CustomDataParallel, get_last_weights, init_weights, boolean_string
 from datetime import datetime
-
+from utils.utils import preprocess, invert_affine, postprocess, STANDARD_COLORS, standard_to_bgr, get_index_label, plot_one_box
 def seed_torch(seed=1):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -340,5 +341,42 @@ class EfficientDetWrapper:
         end_time = datetime.now()
         print("Training time: {}".format(end_time-start_time))
 
-    def inference(self):
-        pass
+    def inference(self, img_path):
+        self.pytorch_model.to(self.device)
+        
+        self.predict_one(img_path)
+
+    def predict_one(self, img_path):
+        self.pytorch_model.eval()
+        ori_imgs, framed_imgs, framed_metas = preprocess(img_path, max_size= self.input_size)
+
+        x = torch.stack([torch.from_numpy(fi).to(self.device) for fi in framed_imgs], 0)
+
+        threshold = 0.2
+        iou_threshold = 0.5
+        color_list = standard_to_bgr(STANDARD_COLORS)
+        
+        with torch.no_grad():
+            features, regression, classification, anchors = self.pytorch_model(x)
+
+            regressBoxes = BBoxTransform()
+            clipBoxes = ClipBoxes()
+
+            out = postprocess(x,
+                            anchors, regression, classification,
+                            regressBoxes, clipBoxes,
+                            threshold, iou_threshold)
+            
+            print(out)
+
+        imgs = ori_imgs.copy()
+        preds = out
+        for j in range(len(preds['rois'])):
+            x1, y1, x2, y2 = preds['rois'][j].astype(np.int)
+            obj = obj_list[preds['class_ids'][j]]
+            score = float(preds['scores'][j])
+            plot_one_box(imgs, [x1, y1, x2, y2], label=obj,score=score,color=color_list[get_index_label(obj, self.classes)])
+
+        cv2.imwrite(f'img_inferred_test_this_repo.jpg', imgs)
+        
+
