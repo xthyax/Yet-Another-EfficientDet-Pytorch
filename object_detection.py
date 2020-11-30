@@ -113,7 +113,7 @@ if __name__ == '__main__':
             #     pass
             print("\nTrain Done")
 
-        elif args.command == "cm":
+        elif args.command == "test":
             param = config_loader.LoadConfig(args.config)
             
             class InferConfig:
@@ -125,7 +125,7 @@ if __name__ == '__main__':
                 OPTIMIZER = param.OPTIMIZER
                 NUM_CLASSES = len(param.CLASS_NAME)
                 CLASS_NAME = param.CLASS_NAME
-                INPUT_SIZE = param.CHANGE_BOX_SIZE
+                INPUT_SIZE = param.IMAGE_SIZE
                 IMAGES_PER_GPU = param.BATCH_SIZE
                 CLASS_THRESHOLD = param.CLASS_THRESHOLD
                 
@@ -140,13 +140,17 @@ if __name__ == '__main__':
                 PASS_CLASSNAME = param.PASSCLASS_NAME
                 BINARY = bool(args.binary) # Hardcode
                 NUM_WORKERS = param.NUM_WORKERS
+                ANCHOR_SCALES = param.ANCHOR_SCALES
+                ANCHOR_RATIOS = param.ANCHOR_RATIOS
+                MEAN = param.MEAN
+                STD = param.STD
 
             config = InferConfig()
             set_GPU(config.GPU_COUNT)
             model = EfficientDetWrapper(config)
             model.load_weight()
             # Test with 1 img
-            img_path = r
+            img_path = r"D:\KLA\Jhyn\_Data\X_RAY\X_RAY_preprocess\Validation\Foreign_material_pts_31_top.bmp"
             model.inference(img_path)
             # output = model.predict_one(img)
             # print(f"Result : {output}")

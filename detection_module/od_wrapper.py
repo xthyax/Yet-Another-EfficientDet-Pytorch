@@ -349,10 +349,11 @@ class EfficientDetWrapper:
     def predict_one(self, img_path):
         self.pytorch_model.eval()
         ori_imgs, framed_imgs, framed_metas = preprocess(img_path, max_size= self.input_size)
-
+        # print(self.input_size)
         x = torch.stack([torch.from_numpy(fi).to(self.device) for fi in framed_imgs], 0)
+        x = x.to(torch.float32).permute(0, 3, 1, 2)
 
-        threshold = 0.2
+        threshold = 0.5
         iou_threshold = 0.5
         color_list = standard_to_bgr(STANDARD_COLORS)
         
@@ -366,17 +367,25 @@ class EfficientDetWrapper:
                             anchors, regression, classification,
                             regressBoxes, clipBoxes,
                             threshold, iou_threshold)
-            
+            print(classification)
             print(out)
 
         imgs = ori_imgs.copy()
         preds = out
-        for j in range(len(preds['rois'])):
-            x1, y1, x2, y2 = preds['rois'][j].astype(np.int)
-            obj = obj_list[preds['class_ids'][j]]
-            score = float(preds['scores'][j])
-            plot_one_box(imgs, [x1, y1, x2, y2], label=obj,score=score,color=color_list[get_index_label(obj, self.classes)])
+        import cv2
+        for i in range(len(ori_imgs)):
+            if len(preds[i]['rois']) == 0:
+                continue
+            
+            imgs[i] = ori_imgs[i].copy()
+            # preds = out
 
-        cv2.imwrite(f'img_inferred_test_this_repo.jpg', imgs)
+            for j in range(len(preds[i]['rois'])):
+                x1, y1, x2, y2 = preds[i]['rois'][j].astype(np.int)
+                obj = self.classes[preds[i]['class_ids'][j]]
+                score = float(preds[i]['scores'][j])
+                plot_one_box(imgs[i], [x1, y1, x2, y2], label=obj,score=score,color=color_list[get_index_label(obj, self.classes)])
+
+            cv2.imwrite(f'img_inferred_test_this_repo.jpg', imgs[i])
         
 
