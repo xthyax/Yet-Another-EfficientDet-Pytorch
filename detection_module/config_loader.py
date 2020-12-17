@@ -13,8 +13,14 @@ class LoadConfig:
         self.config = self.__read_json()
         self.BATCH_SIZE = self.config['BatchSize']
         self.LEANING_RATE = self.config['LearningRate']
-        self.MOMENTUM = self.config['Momentum']
-        self.DECAY = self.config['Decay']
+        try:
+            self.MOMENTUM = self.config['Momentum']
+        except:
+            self.MOMENTUM = 0.9
+        try:
+            self.DECAY = self.config['Decay']
+        except:
+            self.DECAY = 0.0001
         self.NO_EPOCH = self.config['NoEpoch']
         self.CHANGE_BOX_SIZE = self.config['ChangeBoxSize']
         self.ANCHOR_SCALES = self.config['Anchor_Scales']
@@ -35,7 +41,7 @@ class LoadConfig:
         try :
             self.ARCHITECTURE = self.config['Architecture']
         except:
-            self.ARCHITECTURE = "5"
+            self.ARCHITECTURE = "0"
         self.CLASS_NAME =  [class_name for class_name in self.config['DictionaryClassName']]
         try:
             self.FAILCLASS_NAME = self.config['FailClassName']

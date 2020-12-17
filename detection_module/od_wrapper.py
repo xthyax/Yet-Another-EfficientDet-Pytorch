@@ -348,17 +348,21 @@ class EfficientDetWrapper:
 
     def predict_one(self, img_path):
         self.pytorch_model.eval()
-        ori_imgs, framed_imgs, framed_metas = preprocess(img_path, max_size= self.input_size)
+        ori_imgs, framed_imgs, framed_metas = preprocess(img_path, crop_size=self.input_size)
         # print(self.input_size)
         x = torch.stack([torch.from_numpy(fi).to(self.device) for fi in framed_imgs], 0)
         x = x.to(torch.float32).permute(0, 3, 1, 2)
 
-        threshold = 0.5
-        iou_threshold = 0.5
+        threshold = 0.55
+        iou_threshold = 0.002
         color_list = standard_to_bgr(STANDARD_COLORS)
         
         with torch.no_grad():
             features, regression, classification, anchors = self.pytorch_model(x)
+
+            a = torch.nn.Softmax(dim=0)
+            # print(regression[0][0])   
+            # print(a(regression[0][0]))
 
             regressBoxes = BBoxTransform()
             clipBoxes = ClipBoxes()
@@ -367,8 +371,9 @@ class EfficientDetWrapper:
                             anchors, regression, classification,
                             regressBoxes, clipBoxes,
                             threshold, iou_threshold)
-            print(classification)
             print(out)
+
+        out = invert_affine(framed_metas, out)
 
         imgs = ori_imgs.copy()
         preds = out

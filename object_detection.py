@@ -150,7 +150,7 @@ if __name__ == '__main__':
             model = EfficientDetWrapper(config)
             model.load_weight()
             # Test with 1 img
-            img_path = r"D:\KLA\Jhyn\_Data\X_RAY\X_RAY_preprocess\Validation\Foreign_material_pts_31_top.bmp"
+            img_path = r"D:\Coding_practice\_Data\X_RAY\Validation\Foreign_material_pts_31_top.bmp"
             model.inference(img_path)
             # output = model.predict_one(img)
             # print(f"Result : {output}")

@@ -15,7 +15,6 @@ from torch.nn.init import _calculate_fan_in_and_fan_out, _no_grad_normal_
 from torchvision.ops.boxes import batched_nms
 
 from utils.sync_batchnorm import SynchronizedBatchNorm2d
-from gpuinfo import GPUInfo
 
 def invert_affine(metas: Union[float, list, tuple], preds):
     for i in range(len(preds)):
@@ -31,6 +30,64 @@ def invert_affine(metas: Union[float, list, tuple], preds):
                 preds[i]['rois'][:, [1, 3]] = preds[i]['rois'][:, [1, 3]] / (new_h / old_h)
     return preds
 
+def load_and_crop(image_path, input_size=0, custom_size=None, crop_opt=True):
+    """ Load image and return image with specific crop size
+
+    This function will crop corresponding to json file and will resize respectively input_size
+
+    Input:
+        image_path : Ex:Dataset/Train/img01.bmp
+        input_size : any specific size
+        
+    Output:
+        image after crop and class gt
+    """
+    image = cv2.imread(image_path)
+    # image = np.load(image_path)
+    # image = image["content"]
+    json_path = image_path + ".json"
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    size_image = image.shape
+
+    try :
+        with open(json_path, encoding='utf-8') as json_file:
+            json_data = json.load(json_file)
+            box = json_data['box']
+            center_x = box['centerX'][0]
+            center_y = box['centerY'][0]
+            widthBox = box['widthBox'][0]
+            heightBox = box['heightBox'][0]
+            class_gt = json_data['classId'][0]
+    except:
+        print(f"Can't find or missing some fields: {json_path}")
+        # Crop center image if no json found
+        center_x = custom_size[0]
+        center_y = custom_size[1]
+        widthBox = 0
+        heightBox = 0
+        class_gt = "Empty"
+
+    new_w = new_h = input_size
+
+    # new_w = max(widthBox, input_size)
+    # new_h = max(heightBox, input_size)
+    if crop_opt:
+        left, right = center_x - new_w / 2, center_x + new_w / 2
+        top, bottom = center_y - new_h / 2, center_y + new_h / 2
+
+        left, top = round(max(0, left)), round(max(0, top))
+        right, bottom = round(min(size_image[1] - 0, right)), round(min(size_image[0] - 0, bottom))
+
+        cropped_image = image[int(top):int(bottom), int(left):int(right)]
+
+        # if input_size > new_w:
+        #     changed_image = cv2.resize(cropped_image,(input_size, input_size))
+        # else:
+        #     changed_image = cropped_image
+
+        return cropped_image, class_gt
+    else:
+        return image, class_gt
 
 def aspectaware_resize_padding(image, width, height, interpolation=None, means=None):
     old_h, old_w, c = image.shape
@@ -65,9 +122,15 @@ def aspectaware_resize_padding(image, width, height, interpolation=None, means=N
     return canvas, new_w, new_h, old_w, old_h, padding_w, padding_h,
 
 
-def preprocess(*image_path, max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
-    ori_imgs = [cv2.imread(img_path)[..., ::-1] for img_path in image_path]
-    normalized_imgs = [(img / 255 - mean) / std for img in ori_imgs]
+def preprocess(*image_path, crop_size = 128,max_size=512, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
+    print(image_path[0])
+    # image, _ = load_and_crop(image_path[0], input_size=crop_size, custom_size=(256, 256))
+    # ori_imgs = [image]
+    ori_imgs = [cv2.imread(image_path[0])]
+    print(ori_imgs)
+    # print(ori_imgs[0].shape)
+    # ori_imgs = [cv2.imread(img_path) for img_path in image_path]
+    normalized_imgs = [(img[..., ::-1] / 255 - mean) / std for img in ori_imgs]
     imgs_meta = [aspectaware_resize_padding(img, max_size, max_size,
                                             means=None) for img in normalized_imgs]
     framed_imgs = [img_meta[0] for img_meta in imgs_meta]
@@ -91,6 +154,8 @@ def postprocess(x, anchors, regression, classification, regressBoxes, clipBoxes,
     transformed_anchors = regressBoxes(anchors, regression)
     transformed_anchors = clipBoxes(transformed_anchors, x)
     scores = torch.max(classification, dim=2, keepdim=True)[0]
+    # print(scores)
+    # print(torch.max(scores))
     scores_over_thresh = (scores > threshold)[:, :, 0]
     out = []
     for i in range(x.shape[0]):
@@ -315,26 +380,38 @@ def boolean_string(s):
 
 def set_GPU(num_of_GPUs):
 
-    current_memory_gpu = GPUInfo.gpu_usage()[1]
-    list_available_gpu = np.where(np.array(current_memory_gpu) < 1500)[0].astype('str').tolist()
-    current_available_gpu = ",".join(list_available_gpu)
-    if len(list_available_gpu) < num_of_GPUs:
+    try:
+        from gpuinfo import GPUInfo
+        current_memory_gpu = GPUInfo.gpu_usage()[1]
+        list_available_gpu = np.where(np.array(current_memory_gpu) < 1500)[0].astype('str').tolist()
+        current_available_gpu = ",".join(list_available_gpu)
+        # print(list_available_gpu)
+        # print(current_available_gpu)
+        # print(num_of_GPUs)
+    except:
+        print("[INFO] No GPU found")
+        current_available_gpu = "-1"
+        list_available_gpu = []
+        
+    if len(list_available_gpu) < num_of_GPUs and len(list_available_gpu) > 0:
         print("==============Warning==============")
         print("Your process had been terminated")
         print("Please decrease number of gpus you using")
         print(f"number of Devices available:\t{len(list_available_gpu)} gpu(s)")
         print(f"number of Device will use:\t{num_of_GPUs} gpu(s)")
         sys.exit()
-    elif len(list_available_gpu) > num_of_GPUs:
-        redundant_gpu = len(list_available_gpu) - num_of_GPUs
-        list_available_gpu = list_available_gpu[redundant_gpu:]
+
+    elif len(list_available_gpu) > num_of_GPUs and num_of_GPUs != 0:
+        # redundant_gpu = len(list_available_gpu) - num_of_GPUs
+        list_available_gpu = list_available_gpu[:num_of_GPUs]
         current_available_gpu = ",".join(list_available_gpu)
-        print("***********************************************")
-        print(f"You are using GPU(s): {current_available_gpu}")
-        print("***********************************************")
-        os.environ["CUDA_VISIBLE_DEVICES"] = current_available_gpu
-    else: 
-        print("***********************************************")
-        print(f"You are using GPU(s): {current_available_gpu}")
-        print("***********************************************")
-        os.environ["CUDA_VISIBLE_DEVICES"] = current_available_gpu
+
+    elif num_of_GPUs == 0 or len(list_available_gpu)==0:
+        current_available_gpu = "-1"
+        if len(list_available_gpu)==0:
+            print("[INFO] No GPU found")
+
+    print("[INFO] ***********************************************")
+    print(f"[INFO] You are using GPU(s): {current_available_gpu}")
+    print("[INFO] ***********************************************")
+    os.environ["CUDA_VISIBLE_DEVICES"] = current_available_gpu
