@@ -353,14 +353,14 @@ class EfficientDetWrapper:
         x = torch.stack([torch.from_numpy(fi).to(self.device) for fi in framed_imgs], 0)
         x = x.to(torch.float32).permute(0, 3, 1, 2)
 
-        threshold = 0.55
-        iou_threshold = 0.002
+        threshold = 0.4
+        iou_threshold = 0.02
         color_list = standard_to_bgr(STANDARD_COLORS)
         
         with torch.no_grad():
             features, regression, classification, anchors = self.pytorch_model(x)
 
-            a = torch.nn.Softmax(dim=0)
+            # a = torch.nn.Softmax(dim=0)
             # print(regression[0][0])   
             # print(a(regression[0][0]))
 
@@ -371,7 +371,7 @@ class EfficientDetWrapper:
                             anchors, regression, classification,
                             regressBoxes, clipBoxes,
                             threshold, iou_threshold)
-            print(out)
+            # print(out)
 
         out = invert_affine(framed_metas, out)
 
